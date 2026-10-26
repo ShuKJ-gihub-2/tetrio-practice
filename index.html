@@ -10,7 +10,6 @@
       --accent-color: #7b2cbf;
       --accent-hover: #9d4edd;
       --text-color: #e0e0e0;
-      --grid-line: #2a2a3d;
     }
 
     body {
@@ -134,7 +133,7 @@
       font-size: 12px;
       line-height: 1.6;
     }
-    
+
     .guide-badge {
       display: inline-block;
       padding: 2px 6px;
@@ -150,7 +149,7 @@
   <h1>TETR.IO テンプレ練習ツール</h1>
 
   <div class="app-container">
-    <!-- 左パネル: 設定（ハンドリング & キーコンフィグ） -->
+    <!-- 左パネル: 設定 -->
     <div class="left-panel">
       <div class="box">
         <h3>ハンドリング設定</h3>
@@ -180,12 +179,12 @@
       </div>
     </div>
 
-    <!-- 中央: テトリス盤面 Canvas -->
+    <!-- 中央: 盤面 Canvas -->
     <div class="game-board-container">
       <canvas id="board" width="300" height="600"></canvas>
     </div>
 
-    <!-- 右パネル: テンプレ選択 / ファイル読み込み / 3手先最適解表示 -->
+    <!-- 右パネル: テンプレ選択 / JSON読み込み / 3手先最適解ガイド -->
     <div class="right-panel">
       <div class="box">
         <h3>テンプレ選択</h3>
@@ -200,9 +199,7 @@
 
       <div class="box">
         <h3>3手先最適解ガイド</h3>
-        <div id="guide-info" class="next-guide-list">
-          <!-- JSで動的に表示 -->
-        </div>
+        <div id="guide-info" class="next-guide-list"></div>
       </div>
 
       <div class="box">
@@ -215,19 +212,41 @@
   </div>
 
   <script>
-    // --- 基本定数とカラー設定 ---
     const COLS = 10;
     const ROWS = 20;
     const GRID = 30;
 
+    // テトリミノ形状の完全定義 (N x N 正方形行列)
     const TETROMINOES = {
-      'I': [,[7],,],
-      'J': [[7],],
-      'L': [[7],],
-      'O': [[7]],
-      'S': [[7],],
-      'Z': [[7],],
-      'T': [[7],]
+      'I': [
+        ,
+       ,
+        ,
+
+      ],
+      'J': [
+       ,
+
+      ],
+      'L': [
+       ,
+
+      ],
+      'O': [
+
+      ],
+      'S': [
+       ,
+
+      ],
+      'Z': [
+       ,
+
+      ],
+      'T': [
+       ,
+
+      ]
     };
 
     const COLORS = {
@@ -235,7 +254,6 @@
       'O': '#f0f000', 'S': '#00f000', 'Z': '#f00000', 'T': '#a000f0'
     };
 
-    // --- 内蔵プリセットテンプレ（開幕DT砲 & 中盤LST積み） ---
     let TEMPLATES = {
       'dt_cannon': {
         name: '開幕DT砲',
@@ -263,16 +281,10 @@
       }
     };
 
-    // --- キーバインド設定 & 初期化 ---
     let keyBindings = {
-      moveLeft: 'ArrowLeft',
-      moveRight: 'ArrowRight',
-      softDrop: 'ArrowDown',
-      hardDrop: 'Space',
-      rotateCW: 'ArrowUp',
-      rotateCCW: 'KeyZ',
-      hold: 'KeyC',
-      reset: 'KeyR'
+      moveLeft: 'ArrowLeft', moveRight: 'ArrowRight', softDrop: 'ArrowDown',
+      hardDrop: 'Space', rotateCW: 'ArrowUp', rotateCCW: 'KeyZ',
+      hold: 'KeyC', reset: 'KeyR'
     };
 
     let listeningKeyAction = null;
@@ -283,7 +295,6 @@
       document.getElementById('key-' + action).classList.add('listening');
     }
 
-    // --- ゲーム状態変数 ---
     const canvas = document.getElementById('board');
     const ctx = canvas.getContext('2d');
 
@@ -296,46 +307,47 @@
     let currentStep = 0;
     let score = 0;
     let gameRunning = false;
-
     let currentTemplateKey = 'dt_cannon';
 
-    // --- 7バッグツモ生成 ---
     function refillBag() {
       let newBag = ['I', 'J', 'L', 'O', 'S', 'Z', 'T'].sort(() => Math.random() - 0.5);
       bag.push(...newBag);
     }
 
     function getNextPieceType() {
-      while (bag.length < 7) {
-        refillBag();
-      }
+      while (bag.length < 7) refillBag();
       return bag.shift();
     }
 
     function createPiece(type) {
-      const shape = TETROMINOES[type].map(row => [...row]);
+      const pType = type.toUpperCase();
+      const shape = TETROMINOES[pType].map(row => [...row]);
       return {
-        type: type,
+        type: pType,
         shape: shape,
         x: Math.floor((COLS - shape.length) / 2),
         y: 0
       };
     }
 
-    // --- 行列回転 (回転規則) ---
+    // 安全処理を追加した回転処理
     function rotateMatrix(matrix, dir = 1) {
+      if (!matrix || !Array.isArray(matrix) || matrix.length === 0) return matrix;
       const N = matrix.length;
       let result = Array.from({ length: N }, () => Array(N).fill(0));
       for (let r = 0; r < N; r++) {
+        if (!matrix[r]) continue;
         for (let c = 0; c < N; c++) {
-          if (dir === 1) result[c][N - 1 - r] = matrix[r][c]; // 右回転
-          else result[N - 1 - c][r] = matrix[r][c];          // 左回転
+          if (dir === 1) {
+            result[c][N - 1 - r] = matrix[r][c] || 0;
+          } else {
+            result[N - 1 - c][r] = matrix[r][c] || 0;
+          }
         }
       }
       return result;
     }
 
-    // --- 衝突判定 ---
     function checkCollision(piece, offsetX = 0, offsetY = 0, newShape = null) {
       const shape = newShape || piece.shape;
       for (let r = 0; r < shape.length; r++) {
@@ -351,7 +363,6 @@
       return false;
     }
 
-    // --- 描画処理 ---
     function drawSquare(x, y, color, alpha = 1.0, strokeColor = '#000') {
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -373,7 +384,7 @@
       }
     }
 
-    // --- 3手先最適解ガイド表示描画 ---
+    // 3手先最適解ガイド表示 (エラー修正箇所)
     function draw3StepGuides() {
       const template = TEMPLATES[currentTemplateKey];
       if (!template || !template.steps) return;
@@ -386,15 +397,15 @@
         let stepIdx = currentStep + i;
         if (stepIdx < template.steps.length) {
           let step = template.steps[stepIdx];
-          let pType = step.piece;
-          let shape = TETROMINOES[pType];
+          let pType = (step.piece || '').toUpperCase();
+          if (!TETROMINOES[pType]) continue;
 
-          // 指定回転を適用
+          // ディープコピーしてから回転適用
+          let shape = TETROMINOES[pType].map(row => [...row]);
           for (let rot = 0; rot < (step.rot || 0); rot++) {
             shape = rotateMatrix(shape, 1);
           }
 
-          // 盤面上に配置場所をハイライト描画
           for (let r = 0; r < shape.length; r++) {
             for (let c = 0; c < shape[r].length; c++) {
               if (shape[r][c]) {
@@ -407,24 +418,20 @@
             }
           }
 
-          guideHTML += `<div><span class="guide-badge" style="background:${COLORS[pType]}; color:#000;">${i+1}手先 [${pType}]</span> (X:${step.x}, Y:${step.y})</div>`;
+          guideHTML += `<div><span class="guide-badge" style="background:${COLORS[pType] || '#fff'}; color:#000;">${i+1}手先 [${pType}]</span> (X:${step.x}, Y:${step.y})</div>`;
         }
       }
       guideInfoBox.innerHTML = guideHTML || '<div>テンプレ完了！自由操作モード</div>';
     }
 
-    // --- ゴースト（落下予測）描画 ---
     function drawGhostPiece() {
       if (!activePiece) return;
       let ghost = { ...activePiece, shape: activePiece.shape.map(r => [...r]) };
-      while (!checkCollision(ghost, 0, 1)) {
-        ghost.y++;
-      }
+      while (!checkCollision(ghost, 0, 1)) ghost.y++;
+
       ghost.shape.forEach((row, r) => {
         row.forEach((val, c) => {
-          if (val) {
-            drawSquare(ghost.x + c, ghost.y + r, COLORS[ghost.type], 0.25, 'rgba(255,255,255,0.4)');
-          }
+          if (val) drawSquare(ghost.x + c, ghost.y + r, COLORS[ghost.type], 0.25, 'rgba(255,255,255,0.4)');
         });
       });
     }
@@ -434,23 +441,17 @@
       drawGrid();
       draw3StepGuides();
 
-      // 既存ブロックの描画
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
-          if (board[r][c]) {
-            drawSquare(c, r, board[r][c]);
-          }
+          if (board[r][c]) drawSquare(c, r, board[r][c]);
         }
       }
 
-      // ゴースト & 操作中ピースの描画
       if (activePiece) {
         drawGhostPiece();
         activePiece.shape.forEach((row, r) => {
           row.forEach((val, c) => {
-            if (val) {
-              drawSquare(activePiece.x + c, activePiece.y + r, COLORS[activePiece.type]);
-            }
+            if (val) drawSquare(activePiece.x + c, activePiece.y + r, COLORS[activePiece.type]);
           });
         });
       }
@@ -459,7 +460,6 @@
       document.getElementById('step-val').innerText = currentStep + 1;
     }
 
-    // --- ライン消去 & ピース固定 ---
     function lockPiece() {
       activePiece.shape.forEach((row, r) => {
         row.forEach((val, c) => {
@@ -473,7 +473,6 @@
         });
       });
 
-      // ライン消去
       for (let r = ROWS - 1; r >= 0; r--) {
         if (board[r].every(cell => cell !== 0)) {
           board.splice(r, 1);
@@ -490,9 +489,7 @@
 
     function spawnNextPiece() {
       if (nextQueue.length < 5) {
-        while (nextQueue.length < 7) {
-          nextQueue.push(getNextPieceType());
-        }
+        while (nextQueue.length < 7) nextQueue.push(getNextPieceType());
       }
       let nextType = nextQueue.shift();
       activePiece = createPiece(nextType);
@@ -516,8 +513,6 @@
       render();
     }
 
-    // --- キーボード操作 & TETR.IO風ハンドリング (DAS / ARR) ---
-    let keyStates = {};
     let dasTimers = {};
 
     document.addEventListener('keydown', (e) => {
@@ -549,9 +544,7 @@
           else break;
         }
       } else if (e.code === keyBindings.hardDrop) {
-        while (!checkCollision(activePiece, 0, 1)) {
-          activePiece.y++;
-        }
+        while (!checkCollision(activePiece, 0, 1)) activePiece.y++;
         lockPiece();
       } else if (e.code === keyBindings.rotateCW) {
         let rotated = rotateMatrix(activePiece.shape, 1);
@@ -601,7 +594,6 @@
       }
     });
 
-    // --- カスタムテンプレJSON読み込み処理 ---
     function loadCustomTemplateFile(event) {
       const file = event.target.files;
       if (!file) return;
@@ -639,7 +631,6 @@
       resetGame();
     }
 
-    // 初期化実行
     resetGame();
   </script>
 </body>
