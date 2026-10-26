@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>TETR.IO テンプレ練習 Web App</title>
+  <style>
+    :root {
+      --bg-color: #0f0f17;
+      --panel-bg: #1a1a26;
+      --accent-color: #7b2cbf;
+      --accent-hover: #9d4edd;
+      --text-color: #e0e0e0;
+      --grid-line: #2a2a3d;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      margin-bottom: 15px;
+      font-size: 24px;
+      color: #ffffff;
+      text-shadow: 0 0 10px rgba(123, 44, 191, 0.5);
+    }
+
+    .app-container {
+      display: flex;
+      gap: 20px;
+      background: var(--panel-bg);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+      max-width: 1100px;
+      width: 100%;
+    }
+
+    .left-panel, .right-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      width: 280px;
+    }
+
+    .game-board-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    canvas {
+      background-color: #05050a;
+      border: 2px solid #33334d;
+      border-radius: 6px;
+    }
+
+    .box {
+      background: #12121c;
+      padding: 12px;
+      border-radius: 8px;
+      border-left: 4px solid var(--accent-color);
+    }
+
+    .box h3 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #a55eea;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    label {
+      font-size: 12px;
+      display: block;
+      margin-top: 6px;
+      color: #aaaaaa;
+    }
+
+    input[type="number"], select, input[type="file"], button {
+      width: 100%;
+      background: #252538;
+      color: #fff;
+      border: 1px solid #444466;
+      padding: 6px;
+      border-radius: 4px;
+      margin-top: 4px;
+      box-sizing: border-box;
+      font-size: 12px;
+    }
+
+    button {
+      background: var(--accent-color);
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      margin-top: 10px;
+      padding: 8px;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: var(--accent-hover);
+    }
+
+    .key-bind-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .key-btn {
+      background: #222235;
+      border: 1px solid #444466;
+      padding: 4px;
+      text-align: center;
+      font-size: 11px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .key-btn.listening {
+      border-color: #f0a000;
+      background: #3a3210;
+    }
+
+    .next-guide-list {
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    
+    .guide-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: bold;
+      margin-right: 4px;
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>TETR.IO テンプレ練習ツール</h1>
+
+  <div class="app-container">
+    <!-- 左パネル: 設定（ハンドリング & キーコンフィグ） -->
+    <div class="left-panel">
+      <div class="box">
+        <h3>ハンドリング設定</h3>
+        <label>DAS (Delayed Auto Shift: ms):
+          <input type="number" id="setting-das" value="130" min="0" max="300" step="5">
+        </label>
+        <label>ARR (Auto Repeat Rate: ms):
+          <input type="number" id="setting-arr" value="10" min="0" max="100" step="2">
+        </label>
+        <label>SDF (Soft Drop Factor):
+          <input type="number" id="setting-sdf" value="40" min="1" max="40" step="1">
+        </label>
+      </div>
+
+      <div class="box">
+        <h3>キーコンフィグ</h3>
+        <div class="key-bind-grid">
+          <div><label>左移動</label><div class="key-btn" id="key-moveLeft" onclick="bindKey('moveLeft')">ArrowLeft</div></div>
+          <div><label>右移動</label><div class="key-btn" id="key-moveRight" onclick="bindKey('moveRight')">ArrowRight</div></div>
+          <div><label>ソフトドロップ</label><div class="key-btn" id="key-softDrop" onclick="bindKey('softDrop')">ArrowDown</div></div>
+          <div><label>ハードドロップ</label><div class="key-btn" id="key-hardDrop" onclick="bindKey('hardDrop')">Space</div></div>
+          <div><label>右回転 (CW)</label><div class="key-btn" id="key-rotateCW" onclick="bindKey('rotateCW')">ArrowUp</div></div>
+          <div><label>左回転 (CCW)</label><div class="key-btn" id="key-rotateCCW" onclick="bindKey('rotateCCW')">KeyZ</div></div>
+          <div><label>ホールド</label><div class="key-btn" id="key-hold" onclick="bindKey('hold')">KeyC</div></div>
+          <div><label>リセット</label><div class="key-btn" id="key-reset" onclick="bindKey('reset')">KeyR</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 中央: テトリス盤面 Canvas -->
+    <div class="game-board-container">
+      <canvas id="board" width="300" height="600"></canvas>
+    </div>
+
+    <!-- 右パネル: テンプレ選択 / ファイル読み込み / 3手先最適解表示 -->
+    <div class="right-panel">
+      <div class="box">
+        <h3>テンプレ選択</h3>
+        <select id="template-select" onchange="onTemplateChange()">
+          <option value="dt_cannon">【開幕】開幕DT砲</option>
+          <option value="lst_staking">【中盤】LST積み</option>
+        </select>
+        <label>外部JSONテンプレ読み込み:
+          <input type="file" id="template-file" accept=".json" onchange="loadCustomTemplateFile(event)">
+        </label>
+      </div>
+
+      <div class="box">
+        <h3>3手先最適解ガイド</h3>
+        <div id="guide-info" class="next-guide-list">
+          <!-- JSで動的に表示 -->
+        </div>
+      </div>
+
+      <div class="box">
+        <h3>ステータス</h3>
+        <p style="margin:4px 0;">スコア: <span id="score-val" style="font-weight:bold; color:#fff;">0</span></p>
+        <p style="margin:4px 0;">現在のステップ: <span id="step-val" style="font-weight:bold; color:#fff;">1</span></p>
+        <button onclick="resetGame()">ゲーム開始 / リセット [R]</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- 基本定数とカラー設定 ---
+    const COLS = 10;
+    const ROWS = 20;
+    const GRID = 30;
+
+    const TETROMINOES = {
+      'I': [,[7],,],
+      'J': [[7],],
+      'L': [[7],],
+      'O': [[7]],
+      'S': [[7],],
+      'Z': [[7],],
+      'T': [[7],]
+    };
+
+    const COLORS = {
+      'I': '#00f0f0', 'J': '#0000f0', 'L': '#f0a000',
+      'O': '#f0f000', 'S': '#00f000', 'Z': '#f00000', 'T': '#a000f0'
+    };
+
+    // --- 内蔵プリセットテンプレ（開幕DT砲 & 中盤LST積み） ---
+    let TEMPLATES = {
+      'dt_cannon': {
+        name: '開幕DT砲',
+        type: 'opening',
+        steps: [
+          { piece: 'L', x: 0, y: 17, rot: 0 },
+          { piece: 'J', x: 7, y: 17, rot: 0 },
+          { piece: 'I', x: 3, y: 16, rot: 1 },
+          { piece: 'O', x: 4, y: 17, rot: 0 },
+          { piece: 'S', x: 5, y: 17, rot: 0 },
+          { piece: 'Z', x: 4, y: 18, rot: 0 },
+          { piece: 'T', x: 1, y: 17, rot: 2 }
+        ]
+      },
+      'lst_staking': {
+        name: 'LST積み (中盤)',
+        type: 'midgame',
+        steps: [
+          { piece: 'L', x: 0, y: 17, rot: 0 },
+          { piece: 'S', x: 1, y: 18, rot: 0 },
+          { piece: 'T', x: 4, y: 18, rot: 0 },
+          { piece: 'J', x: 7, y: 17, rot: 0 },
+          { piece: 'Z', x: 5, y: 18, rot: 0 }
+        ]
+      }
+    };
+
+    // --- キーバインド設定 & 初期化 ---
+    let keyBindings = {
+      moveLeft: 'ArrowLeft',
+      moveRight: 'ArrowRight',
+      softDrop: 'ArrowDown',
+      hardDrop: 'Space',
+      rotateCW: 'ArrowUp',
+      rotateCCW: 'KeyZ',
+      hold: 'KeyC',
+      reset: 'KeyR'
+    };
+
+    let listeningKeyAction = null;
+
+    function bindKey(action) {
+      listeningKeyAction = action;
+      document.querySelectorAll('.key-btn').forEach(btn => btn.classList.remove('listening'));
+      document.getElementById('key-' + action).classList.add('listening');
+    }
+
+    // --- ゲーム状態変数 ---
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d');
+
+    let board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+    let activePiece = null;
+    let holdPieceType = null;
+    let canHold = true;
+    let bag = [];
+    let nextQueue = [];
+    let currentStep = 0;
+    let score = 0;
+    let gameRunning = false;
+
+    let currentTemplateKey = 'dt_cannon';
+
+    // --- 7バッグツモ生成 ---
+    function refillBag() {
+      let newBag = ['I', 'J', 'L', 'O', 'S', 'Z', 'T'].sort(() => Math.random() - 0.5);
+      bag.push(...newBag);
+    }
+
+    function getNextPieceType() {
+      while (bag.length < 7) {
+        refillBag();
+      }
+      return bag.shift();
+    }
+
+    function createPiece(type) {
+      const shape = TETROMINOES[type].map(row => [...row]);
+      return {
+        type: type,
+        shape: shape,
+        x: Math.floor((COLS - shape.length) / 2),
+        y: 0
+      };
+    }
+
+    // --- 行列回転 (回転規則) ---
+    function rotateMatrix(matrix, dir = 1) {
+      const N = matrix.length;
+      let result = Array.from({ length: N }, () => Array(N).fill(0));
+      for (let r = 0; r < N; r++) {
+        for (let c = 0; c < N; c++) {
+          if (dir === 1) result[c][N - 1 - r] = matrix[r][c]; // 右回転
+          else result[N - 1 - c][r] = matrix[r][c];          // 左回転
+        }
+      }
+      return result;
+    }
+
+    // --- 衝突判定 ---
+    function checkCollision(piece, offsetX = 0, offsetY = 0, newShape = null) {
+      const shape = newShape || piece.shape;
+      for (let r = 0; r < shape.length; r++) {
+        for (let c = 0; c < shape[r].length; c++) {
+          if (shape[r][c]) {
+            let targetX = piece.x + c + offsetX;
+            let targetY = piece.y + r + offsetY;
+            if (targetX < 0 || targetX >= COLS || targetY >= ROWS) return true;
+            if (targetY >= 0 && board[targetY][targetX]) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // --- 描画処理 ---
+    function drawSquare(x, y, color, alpha = 1.0, strokeColor = '#000') {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = color;
+      ctx.fillRect(x * GRID, y * GRID, GRID, GRID);
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x * GRID, y * GRID, GRID, GRID);
+      ctx.restore();
+    }
+
+    function drawGrid() {
+      ctx.strokeStyle = '#1e1e2e';
+      ctx.lineWidth = 1;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          ctx.strokeRect(c * GRID, r * GRID, GRID, GRID);
+        }
+      }
+    }
+
+    // --- 3手先最適解ガイド表示描画 ---
+    function draw3StepGuides() {
+      const template = TEMPLATES[currentTemplateKey];
+      if (!template || !template.steps) return;
+
+      const guideColors = ['rgba(0, 240, 240, 0.55)', 'rgba(240, 160, 0, 0.45)', 'rgba(160, 0, 240, 0.35)'];
+      const guideInfoBox = document.getElementById('guide-info');
+      let guideHTML = '';
+
+      for (let i = 0; i < 3; i++) {
+        let stepIdx = currentStep + i;
+        if (stepIdx < template.steps.length) {
+          let step = template.steps[stepIdx];
+          let pType = step.piece;
+          let shape = TETROMINOES[pType];
+
+          // 指定回転を適用
+          for (let rot = 0; rot < (step.rot || 0); rot++) {
+            shape = rotateMatrix(shape, 1);
+          }
+
+          // 盤面上に配置場所をハイライト描画
+          for (let r = 0; r < shape.length; r++) {
+            for (let c = 0; c < shape[r].length; c++) {
+              if (shape[r][c]) {
+                let gx = step.x + c;
+                let gy = step.y + r;
+                if (gx >= 0 && gx < COLS && gy >= 0 && gy < ROWS && board[gy][gx] === 0) {
+                  drawSquare(gx, gy, guideColors[i], 0.7, '#ffffff');
+                }
+              }
+            }
+          }
+
+          guideHTML += `<div><span class="guide-badge" style="background:${COLORS[pType]}; color:#000;">${i+1}手先 [${pType}]</span> (X:${step.x}, Y:${step.y})</div>`;
+        }
+      }
+      guideInfoBox.innerHTML = guideHTML || '<div>テンプレ完了！自由操作モード</div>';
+    }
+
+    // --- ゴースト（落下予測）描画 ---
+    function drawGhostPiece() {
+      if (!activePiece) return;
+      let ghost = { ...activePiece, shape: activePiece.shape.map(r => [...r]) };
+      while (!checkCollision(ghost, 0, 1)) {
+        ghost.y++;
+      }
+      ghost.shape.forEach((row, r) => {
+        row.forEach((val, c) => {
+          if (val) {
+            drawSquare(ghost.x + c, ghost.y + r, COLORS[ghost.type], 0.25, 'rgba(255,255,255,0.4)');
+          }
+        });
+      });
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGrid();
+      draw3StepGuides();
+
+      // 既存ブロックの描画
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (board[r][c]) {
+            drawSquare(c, r, board[r][c]);
+          }
+        }
+      }
+
+      // ゴースト & 操作中ピースの描画
+      if (activePiece) {
+        drawGhostPiece();
+        activePiece.shape.forEach((row, r) => {
+          row.forEach((val, c) => {
+            if (val) {
+              drawSquare(activePiece.x + c, activePiece.y + r, COLORS[activePiece.type]);
+            }
+          });
+        });
+      }
+
+      document.getElementById('score-val').innerText = score;
+      document.getElementById('step-val').innerText = currentStep + 1;
+    }
+
+    // --- ライン消去 & ピース固定 ---
+    function lockPiece() {
+      activePiece.shape.forEach((row, r) => {
+        row.forEach((val, c) => {
+          if (val) {
+            let by = activePiece.y + r;
+            let bx = activePiece.x + c;
+            if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) {
+              board[by][bx] = COLORS[activePiece.type];
+            }
+          }
+        });
+      });
+
+      // ライン消去
+      for (let r = ROWS - 1; r >= 0; r--) {
+        if (board[r].every(cell => cell !== 0)) {
+          board.splice(r, 1);
+          board.unshift(Array(COLS).fill(0));
+          score += 100;
+          r++;
+        }
+      }
+
+      currentStep++;
+      canHold = true;
+      spawnNextPiece();
+    }
+
+    function spawnNextPiece() {
+      if (nextQueue.length < 5) {
+        while (nextQueue.length < 7) {
+          nextQueue.push(getNextPieceType());
+        }
+      }
+      let nextType = nextQueue.shift();
+      activePiece = createPiece(nextType);
+
+      if (checkCollision(activePiece, 0, 0)) {
+        gameRunning = false;
+        alert('ゲームオーバー！');
+      }
+    }
+
+    function resetGame() {
+      board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+      bag = [];
+      nextQueue = [];
+      score = 0;
+      currentStep = 0;
+      holdPieceType = null;
+      canHold = true;
+      gameRunning = true;
+      spawnNextPiece();
+      render();
+    }
+
+    // --- キーボード操作 & TETR.IO風ハンドリング (DAS / ARR) ---
+    let keyStates = {};
+    let dasTimers = {};
+
+    document.addEventListener('keydown', (e) => {
+      if (listeningKeyAction) {
+        keyBindings[listeningKeyAction] = e.code;
+        document.getElementById('key-' + listeningKeyAction).innerText = e.code;
+        document.getElementById('key-' + listeningKeyAction).classList.remove('listening');
+        listeningKeyAction = null;
+        return;
+      }
+
+      if (e.code === keyBindings.reset) {
+        resetGame();
+        return;
+      }
+
+      if (!gameRunning || !activePiece) return;
+
+      if (e.code === keyBindings.moveLeft) {
+        if (!checkCollision(activePiece, -1, 0)) activePiece.x--;
+        handleDAS('left', -1);
+      } else if (e.code === keyBindings.moveRight) {
+        if (!checkCollision(activePiece, 1, 0)) activePiece.x++;
+        handleDAS('right', 1);
+      } else if (e.code === keyBindings.softDrop) {
+        let sdf = parseInt(document.getElementById('setting-sdf').value) || 20;
+        for (let i = 0; i < sdf; i++) {
+          if (!checkCollision(activePiece, 0, 1)) activePiece.y++;
+          else break;
+        }
+      } else if (e.code === keyBindings.hardDrop) {
+        while (!checkCollision(activePiece, 0, 1)) {
+          activePiece.y++;
+        }
+        lockPiece();
+      } else if (e.code === keyBindings.rotateCW) {
+        let rotated = rotateMatrix(activePiece.shape, 1);
+        if (!checkCollision(activePiece, 0, 0, rotated)) activePiece.shape = rotated;
+      } else if (e.code === keyBindings.rotateCCW) {
+        let rotated = rotateMatrix(activePiece.shape, -1);
+        if (!checkCollision(activePiece, 0, 0, rotated)) activePiece.shape = rotated;
+      } else if (e.code === keyBindings.hold && canHold) {
+        canHold = false;
+        if (!holdPieceType) {
+          holdPieceType = activePiece.type;
+          spawnNextPiece();
+        } else {
+          let temp = activePiece.type;
+          activePiece = createPiece(holdPieceType);
+          holdPieceType = temp;
+        }
+      }
+      render();
+    });
+
+    function handleDAS(dir, dx) {
+      clearTimeout(dasTimers[dir]);
+      clearInterval(dasTimers[dir + '_arr']);
+
+      let das = parseInt(document.getElementById('setting-das').value) || 130;
+      let arr = parseInt(document.getElementById('setting-arr').value) || 10;
+
+      dasTimers[dir] = setTimeout(() => {
+        dasTimers[dir + '_arr'] = setInterval(() => {
+          if (!checkCollision(activePiece, dx, 0)) {
+            activePiece.x += dx;
+            render();
+          }
+        }, arr);
+      }, das);
+    }
+
+    document.addEventListener('keyup', (e) => {
+      if (e.code === keyBindings.moveLeft) {
+        clearTimeout(dasTimers['left']);
+        clearInterval(dasTimers['left_arr']);
+      }
+      if (e.code === keyBindings.moveRight) {
+        clearTimeout(dasTimers['right']);
+        clearInterval(dasTimers['right_arr']);
+      }
+    });
+
+    // --- カスタムテンプレJSON読み込み処理 ---
+    function loadCustomTemplateFile(event) {
+      const file = event.target.files;
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const json = JSON.parse(e.target.result);
+          if (!json.name || !Array.isArray(json.steps)) {
+            alert('JSONフォーマットが無効です。"name" と "steps" 配列が必要です。');
+            return;
+          }
+          const key = 'custom_' + Date.now();
+          TEMPLATES[key] = json;
+
+          const select = document.getElementById('template-select');
+          const opt = document.createElement('option');
+          opt.value = key;
+          opt.text = `【カスタム】${json.name}`;
+          select.appendChild(opt);
+          select.value = key;
+
+          currentTemplateKey = key;
+          resetGame();
+          alert(`テンプレ「${json.name}」を正常にロードしました！`);
+        } catch (err) {
+          alert('JSONファイルの読み込みエラー: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function onTemplateChange() {
+      currentTemplateKey = document.getElementById('template-select').value;
+      resetGame();
+    }
+
+    // 初期化実行
+    resetGame();
+  </script>
+</body>
+</html>
