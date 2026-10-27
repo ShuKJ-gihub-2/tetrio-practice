@@ -216,7 +216,7 @@
     const ROWS = 20;
     const GRID = 30;
 
-    // テトリミノ形状の完全定義 (N x N 正方形行列)
+    // テトリミノ形状の完全定義 (N x N 正方形行列修復済み)
     const TETROMINOES = {
       'I': [
         ,
@@ -321,6 +321,7 @@
 
     function createPiece(type) {
       const pType = type.toUpperCase();
+      if (!TETROMINOES[pType]) return null;
       const shape = TETROMINOES[pType].map(row => [...row]);
       return {
         type: pType,
@@ -330,7 +331,6 @@
       };
     }
 
-    // 安全処理を追加した回転処理
     function rotateMatrix(matrix, dir = 1) {
       if (!matrix || !Array.isArray(matrix) || matrix.length === 0) return matrix;
       const N = matrix.length;
@@ -348,9 +348,14 @@
       return result;
     }
 
+    // 安全策（ガード条件）を追加した checkCollision
     function checkCollision(piece, offsetX = 0, offsetY = 0, newShape = null) {
+      if (!piece) return true;
       const shape = newShape || piece.shape;
+      if (!shape || !Array.isArray(shape)) return true;
+
       for (let r = 0; r < shape.length; r++) {
+        if (!shape[r] || !Array.isArray(shape[r])) continue;
         for (let c = 0; c < shape[r].length; c++) {
           if (shape[r][c]) {
             let targetX = piece.x + c + offsetX;
@@ -384,7 +389,6 @@
       }
     }
 
-    // 3手先最適解ガイド表示 (エラー修正箇所)
     function draw3StepGuides() {
       const template = TEMPLATES[currentTemplateKey];
       if (!template || !template.steps) return;
@@ -400,13 +404,13 @@
           let pType = (step.piece || '').toUpperCase();
           if (!TETROMINOES[pType]) continue;
 
-          // ディープコピーしてから回転適用
           let shape = TETROMINOES[pType].map(row => [...row]);
           for (let rot = 0; rot < (step.rot || 0); rot++) {
             shape = rotateMatrix(shape, 1);
           }
 
           for (let r = 0; r < shape.length; r++) {
+            if (!shape[r]) continue;
             for (let c = 0; c < shape[r].length; c++) {
               if (shape[r][c]) {
                 let gx = step.x + c;
@@ -430,6 +434,7 @@
       while (!checkCollision(ghost, 0, 1)) ghost.y++;
 
       ghost.shape.forEach((row, r) => {
+        if (!row) return;
         row.forEach((val, c) => {
           if (val) drawSquare(ghost.x + c, ghost.y + r, COLORS[ghost.type], 0.25, 'rgba(255,255,255,0.4)');
         });
@@ -450,6 +455,7 @@
       if (activePiece) {
         drawGhostPiece();
         activePiece.shape.forEach((row, r) => {
+          if (!row) return;
           row.forEach((val, c) => {
             if (val) drawSquare(activePiece.x + c, activePiece.y + r, COLORS[activePiece.type]);
           });
@@ -462,6 +468,7 @@
 
     function lockPiece() {
       activePiece.shape.forEach((row, r) => {
+        if (!row) return;
         row.forEach((val, c) => {
           if (val) {
             let by = activePiece.y + r;
@@ -494,7 +501,7 @@
       let nextType = nextQueue.shift();
       activePiece = createPiece(nextType);
 
-      if (checkCollision(activePiece, 0, 0)) {
+      if (activePiece && checkCollision(activePiece, 0, 0)) {
         gameRunning = false;
         alert('ゲームオーバー！');
       }
